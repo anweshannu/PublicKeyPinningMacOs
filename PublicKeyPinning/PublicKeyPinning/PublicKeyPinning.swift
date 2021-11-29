@@ -8,6 +8,7 @@
 import Foundation
 import CryptoKit
 import OSLog
+import CommonCrypto
 
 
 class PublicKeyPinning{
@@ -38,7 +39,7 @@ class PinningDelegate: NSObject, URLSessionDelegate {
         self.serverPublicKeysHashes = serverPublicKeysHashes
     }
     
-    @available(OSX 10.15, *)
+    
     func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
        
         if (challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust) {
@@ -54,8 +55,9 @@ class PinningDelegate: NSObject, URLSessionDelegate {
                             if let publicKeyData = SecKeyCopyExternalRepresentation(publicKey, &error) as Data? {
                                 var keyWithHeader = Data(rsa2048Asn1Header)
                                 keyWithHeader.append(publicKeyData)
-                                let digest = SHA256.hash(data: keyWithHeader)
-                                let digestString = Data(digest).base64EncodedString()
+//                                let digest = SHA256.hash(data: keyWithHeader)
+                                let digest2 = sha256Digest(input: keyWithHeader as NSData)
+                                let digestString = Data(digest2).base64EncodedString()
                                 
                                 if serverPublicKeysHashes.contains(digestString) {
                                     // Pinning successfull
@@ -78,5 +80,13 @@ class PinningDelegate: NSObject, URLSessionDelegate {
         os_log("Public key pinning challenge failed: %@ ", challenge.protectionSpace.host)
         completionHandler(URLSession.AuthChallengeDisposition.cancelAuthenticationChallenge, nil)
     }
+    
+    private func sha256Digest(input : NSData) -> Data {
+        let digestLength = Int(CC_SHA256_DIGEST_LENGTH)
+        var hash = [UInt8](repeating: 0, count: digestLength)
+        CC_SHA256(input.bytes, UInt32(input.length), &hash)
+        return Data(bytes: hash, count: digestLength)
+    }
+    
 }
 
